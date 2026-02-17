@@ -6,7 +6,7 @@ from io import BytesIO
 import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, Side
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter, column_index_from_string
 
 
 REQUIRED_STUDENT_COLUMNS = {'ИИН', 'Сыныбы', 'Тегі', 'Аты'}
@@ -72,7 +72,7 @@ def build_assignments(students_df, available_rooms, max_per_room=23, max_per_cla
     return best_assignments, best_unassigned
 
 
-def _format_workbook(workbook_path: str):
+def _format_workbook(workbook_path: str, title_last_col: str = 'E'):
     wb = load_workbook(workbook_path)
     thin_border = Border(
         left=Side(style='thin'),
@@ -83,21 +83,27 @@ def _format_workbook(workbook_path: str):
 
     for sheet in wb.sheetnames:
         ws = wb[sheet]
-        ws.merge_cells('A1:E1')
+        expected_max_col = column_index_from_string(title_last_col)
+
+        # Remove accidental empty columns to the right (e.g. empty E in reference file)
+        if ws.max_column > expected_max_col:
+            ws.delete_cols(expected_max_col + 1, ws.max_column - expected_max_col)
+
+        ws.merge_cells(f'A1:{title_last_col}1')
         ws['A1'] = f'Кабинет: {sheet}'
         ws['A1'].font = Font(name='Times New Roman', size=28, bold=True)
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-        for col in ws.columns:
+        for col_idx in range(1, expected_max_col + 1):
             max_length = 0
-            col_letter = get_column_letter(col[0].column)
-            for cell in col:
-                if cell.row > 1:
-                    cell.border = thin_border
-                    cell.font = Font(name='Times New Roman', size=14)
-                    cell.alignment = Alignment(horizontal='center', vertical='center')
-                    if cell.value:
-                        max_length = max(max_length, len(str(cell.value)))
+            col_letter = get_column_letter(col_idx)
+            for row_idx in range(2, ws.max_row + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.border = thin_border
+                cell.font = Font(name='Times New Roman', size=14)
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                if cell.value is not None and str(cell.value) != '':
+                    max_length = max(max_length, len(str(cell.value)))
             ws.column_dimensions[col_letter].width = max_length + 5
 
     wb.save(workbook_path)
@@ -146,14 +152,12 @@ def generate_outputs(
     with pd.ExcelWriter(reference_name, engine='openpyxl') as writer:
         for room in available_rooms:
             df_room = _build_sheet_df(room_assignments.get(room, []))
-            if 'ИИН' in df_room.columns:
-                df_room = df_room.drop(columns=['ИИН'])
-            if len(df_room.columns) >= 5:
-                df_room = df_room.drop(columns=[df_room.columns[4]])
+            # Reference file must contain exactly 4 columns: №, Сыныбы, Тегі, Аты
+            df_room = df_room[['№', 'Сыныбы', 'Тегі', 'Аты']]
             df_room.to_excel(writer, sheet_name=room, startrow=1, index=False)
 
-    _format_workbook(ready_name)
-    _format_workbook(reference_name)
+    _format_workbook(ready_name, title_last_col='E')
+    _format_workbook(reference_name, title_last_col='D')
 
     unassigned_name = None
     if unassigned_students:
