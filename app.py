@@ -134,7 +134,7 @@ with s3:
         step=50,
     )
 
-run_clicked = st.button('Распределить', type='primary', use_container_width=True)
+run_clicked = st.button('Бөлу', type='primary', use_container_width=True)
 
 if run_clicked:
     if not rooms_file or not students_file:
