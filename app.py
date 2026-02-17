@@ -136,6 +136,11 @@ with s3:
 
 run_clicked = st.button('Бөлу', type='primary', use_container_width=True)
 
+if 'download_payloads' not in st.session_state:
+    st.session_state.download_payloads = None
+if 'result_stats' not in st.session_state:
+    st.session_state.result_stats = None
+
 if run_clicked:
     if not rooms_file or not students_file:
         st.error('Екі файлды да жүктеңіз: кабинет және оқушылар файлы.')
@@ -151,45 +156,27 @@ if run_clicked:
                 attempts=int(attempts),
             )
 
-            st.success('Распределение завершено успешно.')
-
-            c1, c2, c3 = st.columns(3)
-            c1.markdown(f"<div class='stat'><b>Барлығы:</b> {result['total_count']}</div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='stat'><b>Орналасты:</b> {result['assigned_count']}</div>", unsafe_allow_html=True)
-            c3.markdown(f"<div class='stat'><b>Орналаспаған:</b> {result['unassigned_count']}</div>", unsafe_allow_html=True)
-
-            st.markdown('### Жүктеу')
             ready_path = Path(result['ready_name'])
             reference_path = Path(result['reference_name'])
+            payloads = {}
 
             with open(ready_path, 'rb') as f:
-                st.download_button(
-                    label='Скачать дайын тізім',
-                    data=f.read(),
-                    file_name=ready_path.name,
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    use_container_width=True,
-                )
+                payloads['ready'] = {'name': ready_path.name, 'data': f.read()}
 
             with open(reference_path, 'rb') as f:
-                st.download_button(
-                    label='Скачать анықтамаға іліп қою үшін',
-                    data=f.read(),
-                    file_name=reference_path.name,
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    use_container_width=True,
-                )
+                payloads['reference'] = {'name': reference_path.name, 'data': f.read()}
 
             if result['unassigned_name']:
                 unassigned_path = Path(result['unassigned_name'])
                 with open(unassigned_path, 'rb') as f:
-                    st.download_button(
-                        label='Скачать орналаспағандар тізімі',
-                        data=f.read(),
-                        file_name=unassigned_path.name,
-                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        use_container_width=True,
-                    )
+                    payloads['unassigned'] = {'name': unassigned_path.name, 'data': f.read()}
+
+            st.session_state.download_payloads = payloads
+            st.session_state.result_stats = {
+                'total_count': result['total_count'],
+                'assigned_count': result['assigned_count'],
+                'unassigned_count': result['unassigned_count'],
+            }
 
             for fname in [result['ready_name'], result['reference_name'], result['unassigned_name']]:
                 if fname and os.path.exists(fname):
@@ -197,3 +184,41 @@ if run_clicked:
 
         except Exception as e:
             st.error(f'Қате: {e}')
+
+if st.session_state.result_stats and st.session_state.download_payloads:
+    stats = st.session_state.result_stats
+    payloads = st.session_state.download_payloads
+
+    st.success('Бөлу сәтті аяқталды.')
+
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(f"<div class='stat'><b>Барлығы:</b> {stats['total_count']}</div>", unsafe_allow_html=True)
+    c2.markdown(f"<div class='stat'><b>Орналасты:</b> {stats['assigned_count']}</div>", unsafe_allow_html=True)
+    c3.markdown(f"<div class='stat'><b>Орналаспаған:</b> {stats['unassigned_count']}</div>", unsafe_allow_html=True)
+
+    st.markdown('### Жүктеу')
+    st.download_button(
+        label='Дайын тізімді жүктеу',
+        data=payloads['ready']['data'],
+        file_name=payloads['ready']['name'],
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        use_container_width=True,
+        key='download_ready',
+    )
+    st.download_button(
+        label='Анықтамаға іліп қою үшін жүктеу',
+        data=payloads['reference']['data'],
+        file_name=payloads['reference']['name'],
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        use_container_width=True,
+        key='download_reference',
+    )
+    if 'unassigned' in payloads:
+        st.download_button(
+            label='Орналаспағандар тізімін жүктеу',
+            data=payloads['unassigned']['data'],
+            file_name=payloads['unassigned']['name'],
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            use_container_width=True,
+            key='download_unassigned',
+        )
