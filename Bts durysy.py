@@ -9,7 +9,7 @@ from openpyxl.styles import Border, Side, Font, Alignment
 from openpyxl.utils import get_column_letter
 
 
-def build_assignments(students_df, available_rooms, max_per_room=23, max_per_class_in_room=3, attempts=400):
+def build_assignments(students_df, available_rooms, max_per_room=23, max_per_class_in_room=2, attempts=400):
     class_sizes = students_df['Сыныбы'].value_counts().to_dict()
     best_assignments = None
     best_unassigned = None
@@ -181,3 +181,4 @@ Label(root, text='Оқушыларды кабинетке бөлу жүйесі'
 Button(root, text='📂 Excel файлын таңдау', font=('Times New Roman', 14), command=choose_files_and_assign).pack(pady=10)
 
 root.mainloop()
+
